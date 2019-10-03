@@ -36,7 +36,7 @@ open class Shoot {
         }.toList()
     }
 
-    @Scheduled(every = "{BATTLEFIELD_HIT_PERIOD}", delayUnit = TimeUnit.MILLISECONDS)
+    @Scheduled(every = "{BATTLEFIELD_HIT_PERIOD_DURATION}")
     open fun shoot(){
         val targetIndex = Random.nextInt(killers.size)
         val target = killers[targetIndex]
