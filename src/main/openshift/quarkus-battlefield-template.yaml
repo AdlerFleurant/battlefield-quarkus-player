@@ -1,0 +1,224 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  template: quarkus-battlefield-template
+metadata:
+  name: quarkus-battlefield-template
+  annotations:
+    description: Quarkus Battlefield Template
+objects:
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: ${APPLICATION_NAME}
+      build: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: ${APPLICATION_NAME}
+      build: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}-11
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${APPLICATION_NAME}:11
+    source:
+      binary: {}
+      dockerfile: |-
+        FROM openjdk:11
+        COPY lib/* /deployments/lib/
+        COPY *-runner.jar /deployments/app.jar
+        RUN chgrp -R 0 /deployments && \
+            chmod -R g=u /deployments
+        USER 1001
+        WORKDIR /deployments
+        ENV AB_ENABLED=jmx_exporter
+        ENTRYPOINT [ "java", "-Dquarkus.http.host=0.0.0.0", "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",\
+           "-jar", "app.jar"]
+      type: Dockerfile
+    strategy:
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          name: openjdk:11
+          namespace: openshift
+      type: Docker
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: ${APPLICATION_NAME}
+      build: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}-8
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${APPLICATION_NAME}:8
+    source:
+      binary: {}
+      dockerfile: |-
+        FROM openjdk:11
+        COPY lib/* /deployments/lib/
+        COPY *-runner.jar /deployments/app.jar
+        RUN chgrp -R 0 /deployments && \
+            chmod -R g=u /deployments
+        USER 1001
+        WORKDIR /deployments
+        ENV AB_ENABLED=jmx_exporter
+        ENTRYPOINT [ "java", "-Dquarkus.http.host=0.0.0.0", "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",\
+           "-jar", "app.jar"]
+      type: Dockerfile
+    strategy:
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          name: openjdk:8
+          namespace: openshift
+      type: Docker
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: ${APPLICATION_NAME}
+      build: ${APPLICATION_NAME}
+    name: native-${APPLICATION_NAME}
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${APPLICATION_NAME}:native
+    source:
+      binary: {}
+      dockerfile: |-
+        FROM registry.access.redhat.com/ubi8/ubi-minimal
+        WORKDIR /work/
+        COPY target/*-runner /work/application
+        RUN chmod 775 /work
+        EXPOSE 8080
+        CMD ["./application", "-Dquarkus.http.host=0.0.0.0"]
+      type: Dockerfile
+    strategy:
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          name: ubi-minimal:latest
+          namespace: openshift
+      type: Docker
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: ${APPLICATION_NAME}-8
+    labels:
+      player: ${APPLICATION_NAME}-8
+  spec:
+    containers:
+    - name: player
+      image: ${APPLICATION_NAME}
+      imagePullPolicy: Always
+      env:
+      - name: BATTLEFIELD_PLAYER_NAME
+        value: ${APPLICATION_NAME}
+      - name: BATTLEFIELD_PLAYER_URLS
+        value: ${PLAYER_URLS}
+      - name: BATTLEFIELD_MAX_HEALTH
+        value: ${MAX_HEALTH}
+      - name: BATTLEFIELD_HIT_PERIOD
+        value: ${HIT_PERIOD}
+    restartPolicy: Never
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: ${APPLICATION_NAME}-11
+    labels:
+      player: ${APPLICATION_NAME}-11
+  spec:
+    containers:
+    - name: player
+      image: ${APPLICATION_NAME}-11
+      imagePullPolicy: Always
+      env:
+      - name: BATTLEFIELD_PLAYER_NAME
+        value: ${APPLICATION_NAME}-11
+      - name: BATTLEFIELD_PLAYER_URLS
+        value: ${PLAYER_URLS}
+      - name: BATTLEFIELD_MAX_HEALTH
+        value: ${MAX_HEALTH}
+      - name: BATTLEFIELD_HIT_PERIOD
+        value: ${HIT_PERIOD}
+    restartPolicy: Never
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: native-${APPLICATION_NAME}
+    labels:
+      player: native-${APPLICATION_NAME}
+  spec:
+    containers:
+    - name: player
+      image: ${APPLICATION_NAME}:native
+      imagePullPolicy: Always
+      env:
+      - name: BATTLEFIELD_PLAYER_NAME
+        value: native-${APPLICATION_NAME}
+      - name: BATTLEFIELD_PLAYER_URLS
+        value: ${PLAYER_URLS}
+      - name: BATTLEFIELD_MAX_HEALTH
+        value: ${MAX_HEALTH}
+      - name: BATTLEFIELD_HIT_PERIOD
+        value: ${HIT_PERIOD}
+      - name:
+    restartPolicy: Never
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APPLICATION_NAME}-8
+  spec:
+    ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    selector:
+      player: ${APPLICATION_NAME}-8
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APPLICATION_NAME}-11
+  spec:
+    ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    selector:
+      player: ${APPLICATION_NAME}-11
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: native-${APPLICATION_NAME}
+  spec:
+    ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    selector:
+      player: native-${APPLICATION_NAME}
+    type: ClusterIP
+parameters:
+- description: Name of the PostgreSQL database accessed.
+  displayName: Application Name
+  name: APPLICATION_NAME
+  required: true
+  value: quarkus-battlefield
+- name: PLAYER_URLS
+- name: MAX_HEALTH
+  value: "10"
+- name: HIT_PERIOD
+  value: "2000"
+- name: IMAGE
+  value: image-registry.openshift-image-registry.svc:5000/myproject/fuse-player-app
