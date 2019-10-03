@@ -1,11 +1,10 @@
 package rhte.demojam.battlefield
 
-import io.quarkus.scheduler.Scheduled
 import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.eclipse.microprofile.rest.client.RestClientBuilder
-import org.jboss.logmanager.Level
 import java.net.URI
 import java.util.concurrent.TimeUnit
+import java.util.logging.Level
 import java.util.logging.Logger
 import javax.annotation.PostConstruct
 import javax.enterprise.context.ApplicationScoped
@@ -29,25 +28,36 @@ open class Shoot {
     open lateinit var myName: String
 
     @PostConstruct
-    open fun init(){
+    open fun init() {
+        LOGGER.log(Level.INFO, "Initializing Targets")
         killers = battlefield.urls.map {
             it to RestClientBuilder.newBuilder().baseUri(URI("http://$it"))
+                    .connectTimeout(1, TimeUnit.SECONDS)
+                    .readTimeout(1, TimeUnit.SECONDS)
                     .build(ShooterClient::class.java)
         }.toList()
+
+        LOGGER.log(Level.INFO, "All targets location acquired")
     }
 
-    @Scheduled(every = "{BATTLEFIELD_HIT_PERIOD_DURATION}")
-    open fun shoot(){
+    open fun shoot() {
+
         val targetIndex = Random.nextInt(killers.size)
         val target = killers[targetIndex]
 
-        val shootResult = target.second.shoot(myName)
+        LOGGER.log(Level.INFO, "Acquired target: ${target.first}")
 
-        LOGGER.log(Level.DEBUG,"Player index: $targetIndex; total: ${battlefield.urls.size}")
-        LOGGER.log(Level.INFO, "Hit player: ${target.first}")
+        try {
+            val shootResult = target.second.shoot(myName)
 
-        if(shootResult.status != 200){
-            LOGGER.log(Level.INFO, "Failed to hit player: $target.- HTTP ${shootResult.statusInfo.reasonPhrase}")
+            LOGGER.log(Level.FINE, "Player index: $targetIndex; total: ${battlefield.urls.size}")
+            LOGGER.log(Level.INFO, "Hit player: ${target.first}")
+
+            if (shootResult.status != 200) {
+                LOGGER.log(Level.INFO, "Failed to hit player: $target.- HTTP ${shootResult.statusInfo.reasonPhrase}")
+            }
+        }catch (ex: Exception){
+            LOGGER.log(Level.SEVERE, "There was an error shooting at ${target.first} with: ${ex.message}")
         }
     }
 }
